@@ -1,0 +1,65 @@
+{
+    "name": "Admin Insights",
+    "namespace": "DE\\RUB\\AdminInsightsExternalModule",
+    "description": "An external module giving some insights into projects.",
+    "documentation": "README.md",
+    "authors": [
+        {
+            "name": "Günther Rezniczek",
+            "email": "guenther.rezniczek@rub.de",
+            "institution": "Ruhr-Universität Bochum - Marien Hospital Herne"
+        }
+    ],
+    "framework-version": 11,
+    "permissions": [
+        "redcap_every_page_top",
+        "redcap_data_entry_form",
+        "redcap_survey_page"
+    ],
+    "enable-every-page-hooks-on-system-pages": true,
+    "links": {
+        "project": [
+            {
+                "name": "<SET VIA CODE>",
+                "key": "toggle-data-entry-annotations",
+                "icon": "fas fa-eye",
+                "url": "javascript:DE_RUB_AdminInsights.toggle('data-entry-annotations'); //"
+            },
+            {
+                "name": "<SET VIA CODE>",
+                "key": "toggle-survey-annotations",
+                "icon": "fas fa-eye",
+                "url": "javascript:DE_RUB_AdminInsights.toggle('survey-annotations'); //"
+            },
+            {
+                "name": "<SET VIA CODE>",
+                "key": "toggle-designer-enhancements",
+                "icon": "fas fa-eye",
+                "url": "javascript:DE_RUB_AdminInsights.toggle('designer-enhancements'); //"
+            }
+        ],
+        "control-center": [
+        ]
+    },
+    "system-settings": [
+        {
+            "key": "debug-mode",
+            "name": "Show debug information on the browser console",
+            "tt_name": "config_debug",
+            "type": "checkbox"
+        }
+    ],
+    "project-settings": [
+    ],
+    "auth-ajax-actions": [
+        "toggle-data-entry-annotations",
+        "toggle-survey-annotations",
+        "toggle-designer-enhancements"
+    ],
+    "compatibility": {
+        "php-version-min": "7.4.0",
+        "php-version-max": "",
+        "redcap-version-min": "13.4.0",
+        "redcap-version-max": ""
+     }
+}
