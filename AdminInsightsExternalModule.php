@@ -27,10 +27,44 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
     #region Hooks
 
     function redcap_data_entry_form ($project_id, $record = NULL, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
+        $user = new User($this->fw, defined("USERID") ? USERID : null);
+        // Only catering for super users
+        if (!$user->isSuperUser()) return;
 
+        $features = ["reveal-hidden"];
+        if ($this->getFeatureState("data-entry-annotations") === "on") {
+            $features[] = "data-entry-annotations";
+        }
+        $context = [
+            "pid" => $project_id,
+            "record" => $record,
+            "form" => $instrument,
+            "event_id" => $event_id,
+            "instance" => $repeat_instance,
+            "dag_id" => $group_id,
+            "is_survey" => false
+        ];
+        $this->add_features($features, $context);
     }
 
     function redcap_survey_page ($project_id, $record = NULL, $instrument, $event_id, $group_id = NULL, $survey_hash, $response_id = NULL, $repeat_instance = 1) {
+        // Only catering for super users
+        if (!\Session::hasAdminSessionCookie()) return;
+        
+        $features = ["reveal-hidden"];
+        if ($this->getFeatureState("survey-annotations") === "on") {
+            $features[] = "survey-annotations";
+        }
+        $context = [
+            "pid" => $project_id,
+            "record" => $record,
+            "form" => $instrument,
+            "event_id" => $event_id,
+            "instance" => $repeat_instance,
+            "dag_id" => $group_id,
+            "is_survey" => true
+        ];
+        $this->add_features($features, $context);
     }
 
     function redcap_every_page_top($project_id = null) {
@@ -43,12 +77,31 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         $page = defined("PAGE") ? PAGE : "";
         if ($page == "") return;
 
+        $context = [
+            "pid" => $project_id,
+            "page" => $page
+        ];
+
         // Online Designer (with form loaded)
-        if ($project_id != null && $page == "Design/online_designer.php" && isset($_GET["page"])) {
-            $this->add_features(["form_designer_enhancements"], [
-                "pid" => $project_id,
-                "form" => $_GET["page"]
-            ]);
+        if (PageInfo::GetDesignerForm() !== null) {
+            $context["form"] = $_GET["page"];
+            if ($this->getFeatureState("designer-enhancements") === "on") {
+                $this->add_features(["designer-enhancements"], $context);
+            }
+        }
+        // Record Home Page (of an existing record)
+        else if (PageInfo::IsExistingRecordHomePage()) {
+            $context["record"] = $_GET["id"];
+            $context["arm"] = $_GET["arm"];
+            $this->add_features(["query-record-rhp"], $context);
+        }
+        // Database Query Tool
+        else if (PageInfo::IsDatabaseQueryTool() && isset($_GET["ai-query-for"])) {
+            $this->add_features(["query-record-dqt"], $context);
+        }
+        // Ensure JS has been injected
+        if (!PageInfo::IsSurvey() && $project_id && !$this->js_injected) {
+            $this->add_features([], $context);
         }
     }
 
@@ -96,223 +149,67 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #endregion
 
+    #region Feature Management
+
+    /**
+     * Maps feature names to setup functions (in this class)
+     * @var Array string => func
+     */
+    private $feature_function_map = [
+        "designer-enhancements" => "designer_enhancements",
+        "data-entry-annotations" => "form_annotations",
+        "survey-annotations" => "form_annotations",
+        "reveal-hidden" => "reveal_hidden",
+        "query-record-rhp" => "query_record_rhp",
+        "query-record-dqt" => "query_record_dqt"
+    ];
+
+    /**
+     * Adds features to a page. This can be called multiple times
+     * @param string[] $features List of the features to add
+     * @param Array $context 
+     * @return void 
+     */
     private function add_features($features, $context) {
         $config = [];
         foreach ($features as $feature) {
-            $config = $this->$feature($context, $config);
+            $feature_func = $this->feature_function_map[$feature];
+            $feature_config = [];
+            if ($this->$feature_func($context, $feature_config) === true) {
+                // Only add when true is returned
+                $config[$feature] = $feature_config;
+            }
         }
         $this->inject_js();
         $this->initialize_js($config);
     }
 
-    private function form_designer_enhancements($context, $config) {
-
-
-
-        return $config;
-    }
-
-
-    function xxx() {
-        return; 
-
-
-        // Database Query Tool Shortcuts
-        if (PageInfo::IsProjectExternalModulesManager() || PageInfo::IsSystemExternalModulesManager() || PageInfo::IsDatabaseQueryTool()) {
-            if (PageInfo::IsProjectExternalModulesManager()) {
-                $query_link = APP_PATH_WEBROOT . "ControlCenter/database_query_tool.php?query-pid={$project_id}&module-prefix=";
-                ?>
-                <script>
-                    $(function(){
-                        $('#external-modules-enabled tr[data-module]').each(function() {
-                            const tr = $(this);
-                            const moduleName = tr.attr('data-module');
-                            const queryLink = $('<a target="_blank" href="<?=$query_link?>' + moduleName + '" style="margin-right:1em;"></a>');
-                            queryLink.html('<i class="fas fa-database" style="margin-right:2px;"></i> <?=js_escape($this->fw->tt("mysqllink_label"))?>');
-                            const purgeLink = $('<a href="javascript:"></a>');
-                            purgeLink.html('<i class="fas fa-database text-danger" style="margin-right:2px;"></i> <?=js_escape($this->fw->tt("mysqlpurge_project_label"))?>');
-                            purgeLink.on('click', () => DE_RUB_EMDTools.purgeSettings(moduleName, <?=$project_id?>));
-                            const td = tr.find('td').first();
-                            if (td.find('div.external-modules-byline').length) {
-                                const div = td.find('div.external-modules-byline').first()
-                                div.append(queryLink)
-                                div.append(purgeLink)
-                            }
-                            else {
-                                const div = $('<div class="external-modules-byline"></div>')
-                                div.append(queryLink)
-                                div.append(purgeLink)
-                                queryLink.css('display', 'block')
-                                queryLink.css('margin-top', '7px')
-                                td.append(div)
-                            }
-                        })
-                    })
-                </script>
-                <?php
-            }
-            else if (PageInfo::IsSystemExternalModulesManager()) {
-                $query_link = APP_PATH_WEBROOT . "ControlCenter/database_query_tool.php?query-pid=0&module-prefix=";
-                ?>
-                <script>
-                    $(function(){
-                        $('#external-modules-enabled tr[data-module]').each(function() {
-                            const tr = $(this);
-                            const moduleName = tr.attr('data-module');
-                            const queryLink = $('<a target="_blank" href="<?=$query_link?>' + moduleName + '" style="margin-right:1em;"><i class="fas fa-database" style="margin-right:2px;"></i></a>');
-                            queryLink.html('<i class="fas fa-database" style="margin-right:2px;"></i> <?=js_escape($this->fw->tt("mysqllink_label"))?>')
-                            const purgeLink = $('<a href="javascript:"></a>');
-                            purgeLink.html('<i class="fas fa-database text-danger" style="margin-right:2px;"></i> <?=js_escape($this->fw->tt("mysqlpurge_cc_label"))?>');
-                            purgeLink.on('click', () => DE_RUB_EMDTools.purgeSettings(moduleName, null));
-                            const td = tr.find('td').first();
-                            if (td.find('div.external-modules-byline').length) {
-                                const div = td.find('div.external-modules-byline').first();
-                                div.append(queryLink);
-                                div.append(purgeLink);
-                            }
-                            else {
-                                const div = $('<div class="external-modules-byline"></div>');
-                                div.append(queryLink);
-                                div.append(purgeLink);
-                                queryLink.css('display', 'block');
-                                queryLink.css('margin-top', '7px');
-                                td.append(div);
-                            }
-                        })
-                    })
-                </script>
-                <?php
-            }
-            else if (PageInfo::IsDatabaseQueryTool()) {
-                $prefix = $_GET["module-prefix"];
-                $record = $_GET["query-record"];
-                $mode = $_GET["query-for"] == "data" ? "data" : "logs";
-                $pid = PageInfo::SanitizeProjectID($_GET["query-pid"]);
-                $pid_clause = $pid === 0 ? "project_id IS NULL" : "project_id = {$pid}";
-                $execute = false;
-                if ($prefix) {
-                    $result = $this->fw->query("
-                        select external_module_id 
-                        from redcap_external_modules 
-                        where directory_prefix = ?",
-                        [ $prefix ]);
-                    $module_id = ($result->fetch_assoc())["external_module_id"];
-                    $query = "SELECT * FROM redcap_external_module_settings\n" . 
-                            "WHERE external_module_id = {$module_id} -- {$prefix}\n" . 
-                            "AND {$pid_clause}";
-                    $execute = $module_id !== null;
-                }
-                else if ($record && $pid > 0) {
-                    $record = db_escape($record);
-                    if ($mode == "data") {
-                        $query = "SELECT * FROM redcap_data\n WHERE `project_id` = {$pid} AND `record` = '{$record}'";
-                    }
-                    else if ($mode == "logs") {
-                        $log_event_table = \REDCap::getLogEventTable($pid);
-                        $query = "SELECT * FROM {$log_event_table}\n WHERE `project_id` = {$pid} AND `pk` = '{$record}'\n ORDER BY `log_event_id` DESC";
-                    }
-                    $execute = !empty($record);
-                }
-                if ($execute) {
-                    // Insert EM Framework CSRF token. Note: Need to set for both names! Not clear why this is needed.
-                    $token = $this->getCSRFToken();
-                    ?>
-                    <script>
-                        $(function() {
-                            $('#query').val(<?=json_encode($query)?>)
-                            $('#form').append('<input type="hidden" name="redcap_external_module_csrf_token" value="<?=$token?>">')
-                            $('#form').append('<input type="hidden" name="redcap_csrf_token" value="<?=$token?>">')
-                            $('#form').submit()
-                        })
-                    </script>
-                    <?php
-                }
-            }
-        }
-
-        // Query for record data.
-        if ($user->isSuperUser()) {
-            if (PageInfo::IsExistingRecordHomePage()) {
-                $record_id = urlencode(strip_tags(label_decode(urldecode($_GET['id']))));
-                $data_link = APP_PATH_WEBROOT . "ControlCenter/database_query_tool.php?query-pid={$project_id}&query-record={$record_id}&query-for=data";
-                ?>
-                <script>
-                    $(function(){
-                        var $ul = $('#recordActionDropdown')
-                        $ul.append('<li class="ui-menu-item"><a href="<?=$data_link?>" target="_blank" style="display:block;" tabindex="-1" role="menuitem" class="ui-menu-item-wrapper"><span style="vertical-align:middle;color:#065499;"><i class="fas fa-database"></i> <?=$this->fw->tt("mysqllink_record_data")?></span></a></li>')
-                    })
-                </script>
-                <?php
-            }
-            // Query for record logs.
-            if (PageInfo::IsExistingRecordHomePage()) {
-                $record_id = urlencode(strip_tags(label_decode(urldecode($_GET['id']))));
-                $logs_link = APP_PATH_WEBROOT . "ControlCenter/database_query_tool.php?query-pid={$project_id}&query-record={$record_id}&query-for=logs";
-                ?>
-                <script>
-                    $(function(){
-                        var $ul = $('#recordActionDropdown')
-                        $ul.append('<li class="ui-menu-item"><a href="<?=$logs_link?>" target="_blank" style="display:block;" tabindex="-1" role="menuitem" class="ui-menu-item-wrapper"><span style="vertical-align:middle;color:#065499;"><i class="fas fa-database" style="color:red;"></i> <?=$this->fw->tt("mysqllink_record_logs")?></span></a></li>')
-                    })
-                </script>
-                <?php
-            }
-        }
-
-        // Toggle Field Annotations
-        if ($user->isSuperUser() && $project_id != null) {
-            ?>
-            <script>
-                function EMDTToggleShowFieldAnnotations() {
-                    var $state = $('#emdt-fieldannotations-state')
-                    if ($state.attr('working') == '1') return
-                    var state = $state.text()
-                    $state.html('<i class="fas fa-spinner fa-spin"></i>').attr('working','1')
-                    $.ajax({
-                        url: '<?= $this->getUrl("toggle-fieldannotations.php") ?>',
-                        data: { redcap_csrf_token: '<?= $this->getCSRFToken() ?>' },
-                        method: 'POST',
-                        success: function(data, textStatus, jqXHR) {
-                            console.log('AJAX done: ', data, jqXHR)
-                            state = data
-                        },
-                        error: function(jqXHR, textStatus, errorThrown) {
-                            console.error('EMDT - Failed to toggle Show Field Annotations state: ' + errorThrown)
-                        },
-                        complete: function() {
-                            $state.text(state)
-                            $state.attr('working', '0')
-                        } 
-                    })
-                }
-            </script>
-            <?php
-        }
-    }
-
-
     /**
-     * Adds and initializes the JS support file
+     * Loads the JS support file and initializes the JSMO (only once)
      */
     private function inject_js() {
         // Only do this once
         if ($this->js_injected) return;
-
+        
         // Inline for survey
         if (PageInfo::IsSurvey()) {
             print "\n<script>\n";
-            $js = file_get_contents(dirname(__FILE__)."js/admin-insights.js");
-            print $js;
+            print file_get_contents(dirname(__FILE__)."/js/admin-insights.js");
             print "\n</script>\n";
         }
         else {
             print "\n<script src='{$this->getUrl('js/admin-insights.js')}'></script>\n";
         }
+        $this->initializeJavascriptModuleObject();
         $this->js_injected = true;
     }
 
+    /**
+     * Initializes the JS support file with configuration data (this can be called multiple times)
+     * @param Array $config 
+     * @return void 
+     */
     private function initialize_js($config) {
-        $this->initializeJavascriptModuleObject();
         $jsmo_name = $this->getJavascriptModuleObjectName();
         $config["version"] = $this->VERSION;
         $config["debug"] = $this->getSystemSetting("debug-mode") == true;
@@ -320,9 +217,119 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         print "\n<script>$(() => DE_RUB_AdminInsights.init(".json_encode($config).", {$jsmo_name}));</script>\n";
     }
 
+    #endregion
+
+    #region Features
+
+    private function designer_enhancements($context, &$config) {
+        $config["fields"] = [];
+        $config["codeTitle"] = $this->tt("designer_code_title");
+        $Proj = new \Project($context["pid"]);
+        $fields = array_keys($Proj->forms[$context["form"]]["fields"]);
+        foreach ($fields as $field) {
+            $misc = $Proj->metadata[$field]["misc"] ?? "";
+            $config["fields"][$field] = $misc;
+        }
+        if (count($fields)) {
+            // CSS
+            ?>
+<style>
+    .copy-field-name { 
+        cursor: pointer !important; 
+        padding: 0 5px;
+        margin-left: -1em;
+    }
+    .copy-field-name:hover {
+        color: var(--bs-primary);
+    }
+    .copy-field-name.clicked {
+        background-color: yellow;
+    }
+    .ai-badge {
+        margin-left: 0.5em;
+    }
+    .ai-badge.ai-badge-annotations {
+        cursor: pointer !important;
+    }
+    .ai-code {
+        white-space: pre;
+    }
+    .ai-code-wrapper {
+        line-height: 13px;
+        font-size: 12px;
+    }
+    .ai-code-edit {
+        position: absolute;
+        top: 7px;
+        right: 5px;
+    }
+</style>
+           <?php
+        }
+        return true;
+    }
+
+    private function form_annotations($context, &$config) {
+        $config["fields"] = [];
+        $Proj = new \Project($context["pid"]);
+        if ($context["is_survey"]) {
+            $page_num = isset($_GET["__page__"]) ? intval($_GET["__page__"]) : 1;
+            $page_fields = \Survey::getPageFields($context["form"], true)[0][$page_num];
+            $config["isSurvey"] = true;
+        }
+        else {
+            $page_fields = array_keys($Proj->forms[$context["form"]]["fields"]);
+            $config["isSurvey"] = false;
+        }
+        foreach ($page_fields as $field) {
+            $misc = $Proj->metadata[$field]["misc"] ?? "";
+            $config["fields"][$field] = $misc;
+        }
+        return true;
+    }
+
+    private function reveal_hidden($context, &$config) {
+        $config["linkLabel"] = "<span class=\"badge badge-info\" style=\"font-weight:normal;font-size:80%;\">AI</span> ".$this->tt("reveal_hidden_link_label");
+        $config["isSurvey"] = $context["is_survey"];
+        return true;
+    }
+
+    private function query_record_rhp($context, &$config) {
+        $config["record"] = $context["record"];
+        $config["pid"] = $context["pid"];
+        $config["dqtLink"] = APP_PATH_WEBROOT_FULL."redcap_v".REDCAP_VERSION."/ControlCenter/database_query_tool.php";
+        $config["labelData"] = "<span class=\"badge badge-info\" style=\"font-weight:normal\">AI</span> ". $this->tt("query_record_data_link_label");
+        $config["labelLogs"] = "<span class=\"badge badge-info\" style=\"font-weight:normal\">AI</span> ". $this->tt("query_record_logs_link_label");
+        return true;
+    }
+
+    private function query_record_dqt($context, &$config) {
+        $mode = $_GET["ai-query-for"];
+        if (!in_array($mode, ["data","logs"], true)) return false;
+        $record = db_escape($_GET["ai-query-id"]);
+        $pid = PageInfo::SanitizeProjectID($_GET["ai-query-pid"]);
+        if ($pid == null) return false;
+        if ($mode == "data") {
+            $config["query"] = "SELECT *\n FROM redcap_data\n WHERE `project_id` = {$pid} AND `record` = '{$record}'";
+        }
+        else {
+            $log_event_table = db_escape(\REDCap::getLogEventTable($pid));
+            $config["query"] = "SELECT *\n FROM {$log_event_table}\n WHERE `project_id` = {$pid} AND `pk` = '{$record}'\n ORDER BY `log_event_id` DESC";
+        }
+        $config["csrfToken"] = $this->getCSRFToken();
+        return true;
+    }
+
+    #endregion
+
+
+
+    #region Helpers
+
     private function getFeatureState($feature) {
         return $this->getProjectSetting("show-$feature") == true ? "on" : "off";
     }
+
     private function setFeatureState($feature, $state) {
         $this->setProjectSetting("show-$feature", $state === "on");
         return $state;
@@ -333,6 +340,10 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         return $this->tt("link_state_{$state}");
     }
 
+    #endregion
+
+
+
     function insertFieldAnnotations($form, $designer = false) {
         global $Proj;
         foreach ($Proj->forms[$form]["fields"] as $field => $_) {
@@ -342,45 +353,13 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         ?>
         <style>
             .copy-field-name { 
-                cursor: hand !important; 
+                cursor: hand !important;
+            }
+            .copy-field-name:hover {
+                color: var(--bs-primary);
             }
         </style>
         <script>
-            /**
-             * Copies a string to the clipboard (fallback method for older browsers)
-             * @param {string} text
-             */
-            function EMMTools_fallbackCopyTextToClipboard(text) {
-                var textArea = document.createElement("textarea");
-                textArea.value = text;
-                // Avoid scrolling to bottom
-                textArea.style.top = "0";
-                textArea.style.left = "0";
-                textArea.style.position = "fixed";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                } catch {
-                    error('Failed to copy text to clipboard.')
-                }
-                document.body.removeChild(textArea);
-            }
-            /**
-             * Copies a string to the clipboard (supported in modern browsers)
-             * @param {string} text
-             * @returns
-             */
-            function EMMTools_copyTextToClipboard(text) {
-                if (!navigator.clipboard) {
-                    EMMTools_fallbackCopyTextToClipboard(text);
-                    return;
-                }
-                navigator.clipboard.writeText(text).catch(function() {
-                    error('Failed to copy text to clipboard.')
-                })
-            }
             // EMM Tools - Append Field Annotations
             function EMMTools_init() {
                 var designer = <?= json_encode($designer) ?>;
@@ -456,115 +435,6 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         <?php
     }
 
-    function inspectProjectObject() {
-        global $Proj, $lang;
-        $user = new User($this->fw, defined("USERID") ? USERID : null);
-        if ($user->isSuperUser()) {
-
-            $script_url = $this->getUrl("js/json-viewer.js");
-            print "<script src=\"{$script_url}\"></script>\n";
-            // Fully(?) populate data
-            $Proj->loadEvents();
-            $Proj->loadEventsForms();
-            $Proj->loadMetadata();
-            $Proj->loadProjectValues();
-            $Proj->loadSurveys();
-            $Proj->getUniqueEventNames();
-            $Proj->getUniqueGroupNames();
-            $Proj->getGroups();
-
-            ?>
-            <style>
-                #projectobject-tabContent {
-                    margin-top:0.5em;
-                    max-width:800px;
-                }
-                pre {
-                    border: none;
-                    background: none;
-                    font-size: 12px;
-                }
-                h4 {
-                    font-size: 1.2em;
-                    font-weight: bold;
-                    margin-bottom: 1em;
-                }
-                .emm-badge {
-                    font-weight: normal;
-                }
-            </style>
-            <h4><?=$this->tt("projectobjectinspector_title")?></h4>
-            <nav>
-                <div class="nav nav-tabs" id="projectobject-tab" role="tablist">
-                    <a class="nav-item nav-link active" id="emm-json-tab" data-toggle="tab" href="#emm-json" role="tab" aria-controls="emm-json" aria-selected="false">JSON</a>
-                    <a class="nav-item nav-link" id="printr-tab" data-toggle="tab" href="#printr" role="tab" aria-controls="printr" aria-selected="true">print_r</a>
-                    <a class="nav-item nav-link" id="vardump-tab" data-toggle="tab" href="#vardump" role="tab" aria-controls="vardump" aria-selected="false">var_dump</a>
-                </div>
-            </nav>
-            <div class="tab-content" id="projectobject-tabContent">
-                <div class="tab-pane fade" id="printr" role="tabpanel" aria-labelledby="printr-tab">
-                    <pre><?php print_r($Proj); ?></pre>
-                </div>
-                <div class="tab-pane fade" id="vardump" role="tabpanel" aria-labelledby="vardump-tab">
-                    <pre><?php var_dump($Proj); ?></pre>
-                </div>
-                <div class="tab-pane fade show active" id="emm-json" role="tabpanel" aria-labelledby="emm-json-tab">
-                    <div id="json-menu">
-                        <a href="javascript:emdtJsonCollapseAll();">Collapse all</a> | 
-                        <a href="javascript:emdtJsonExpandAll();">Expand all</a>
-                    </div>
-                    <div id="json"></div>
-                </div>
-            </div>
-            <script>
-                function emdtJsonCollapseAll() {
-                    $('a.list-link').not('.collapsed').each(function(){
-                        this.click();
-                    })
-                }
-                function emdtJsonExpandAll() {
-                    $('a.list-link.collapsed').each(function(){
-                        this.click()
-                    })
-                }
-
-                $(function(){
-                    var jsonViewer = new JSONViewer();
-                    var json = <?= json_encode($Proj) ?>;
-                    document.querySelector("#json").appendChild(jsonViewer.getContainer());
-                    jsonViewer.showJSON(json, -1, 2);
-                });
-            </script>
-            <?php
-        }
-        else {
-            print $lang["global_05"];
-        }
-    }
-
-    /**
-     * Checks whether a module is enabled for a project or on the system.
-     *
-     * @param string $prefix A unique module prefix.
-     * @param string $pid A project id (optional).
-     * @return mixed False if the module is not enabled, otherwise the enabled version of the module (string).
-     * @throws InvalidArgumentException
-     **/
-    public function _isModuleEnabled($prefix, $pid = null) {
-        if (method_exists($this->framework, "isModuleEnabled")) {
-            return $this->framework->isModuleEnabled($prefix, $pid);
-        }
-        else {
-            if (empty($prefix)) {
-                throw new InvalidArgumentException("Prefix must not be empty.");
-            }
-            if ($pid !== null && !is_int($pid) && ($pid * 1 < 1)) {
-                throw new InvalidArgumentException("Invalid value for pid");
-            }
-            $enabled = \ExternalModules\ExternalModules::getEnabledModules($pid);
-            return array_key_exists($prefix, $enabled) ? $enabled[$prefix] : false;
-        }
-    }
 }
 
 class PageInfo {
@@ -609,7 +479,11 @@ class PageInfo {
     }
 
     public static function IsDataEntry() {
-        return self::getPage() === "DataEntry/index.php";
+        return self::getPage() === "DataEntry/index.php" && isset($_GET["page"]);
+    }
+
+    public static function IsExistingRecordDataEntry() {
+        return self::IsDataEntry() && !isset($_GET["auto"]);
     }
 
     public static function IsSurvey() {
