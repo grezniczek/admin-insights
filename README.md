@@ -21,6 +21,10 @@ Manual installation:
 
 Make sure to **enable the module for all projects** (or for specific projects, e.g. during development). In any case, this module will be invisible to non-admin users.
 
+Some features are always enabled, while some can be turned on or off using the toggle links:  
+![Toggle links](images/ToggleLinks.png)
+
+
 ## Features
 
 ### **Record data and logs query links**
