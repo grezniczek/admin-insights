@@ -236,6 +236,11 @@ function addFormAnnotations(config) {
         // Add copy field name functionality
         $annotation.find('.ai-copy-field-name').on('click', (e) => {
             copyTextToClipboard(e.ctrlKey ? '['+field+']' : field);
+            const $copy = $(e.target);
+            $copy.addClass('clicked');
+            setTimeout(() => {
+                $copy.removeClass('clicked');
+            }, 300);
         });
     }
 }
