@@ -1,4 +1,4 @@
-// Admin Insights
+// Admin Insights - REDCap External Module
 // Dr. Günther Rezniczek, Ruhr-Universität Bochum, Marien Hospital Herne
 // @ts-check
 ;(function() {
@@ -111,46 +111,85 @@ function toggleFeature(feature) {
  * @param {Object} config Feature config
  */
 function addRevealHidden(config) {
-    $(() => {
-        const $afb = $('#auto-fill-btn');
-        // Check for presence of the auto-fill button
-        if ($afb.length == 0) {
-            error('Could not find the auto-fill button. Aborting.');
-            return;
-        }
-        // Add reveal link
-        const $link = $('<a href="javascript:;" class="btn btn-link btn-xs fs11"></a>');
-        if (config.isSurvey) {
-            $link.css({
-                'color': $('#auto-fill-btn').css('color'), 
-                'font-size': $('#auto').css('font-size')
-            });
-        }
-        else {
-            $link.css('color', '#007bffcc').css('text-decoration', 'underline');
-        }
-        $link.html(config.linkLabel);
-        $link.find('.badge').css('margin-left','-4px');
-        $link.on('click', () => {
-            let reveal = true;
-            $('.ai-hidden-removed').each(function() {
-                $(this).removeClass('ai-hidden-removed').addClass('@HIDDEN');
-                reveal = false;
-            })
-            log('Toggled hidden fields: ' + (reveal ? 'Reveal' : 'Restore (Hide)'));
-            if (reveal) {
-                $('.\\@HIDDEN').css({
+    // Some constants
+    const hiddenClasses = ['@HIDDEN'];
+    if (config.isSurvey) {
+        hiddenClasses.push('@HIDDEN-SURVEY');
+    }
+    else {
+        hiddenClasses.push('@HIDDEN-FORM');
+    }
+    const hiddenSelector = hiddenClasses.map(c => '.\\' + c).join(', ');
+    const hiddenStore = 'data-ai-hidden-classes';
+    const hiddenMarker = 'ai-hidden-shown';
+    const hiddenN = $(hiddenSelector).length;
+    // Do not add the link if there is nothing to be revealed
+    if (hiddenN < 1) return;
+    // Construct Link
+    const $link = $('<a href="javascript:;" class="btn btn-link btn-xs fs11"></a>');
+    if (config.isSurvey) {
+        $link.css({
+            'color': $('#auto-fill-btn').css('color'), 
+            'font-size': $('#auto').css('font-size')
+        });
+    }
+    else {
+        $link.css('color', '#007bffcc').css('text-decoration', 'underline');
+    }
+    $link.html(config.linkLabel + ' (' + hiddenN + ')');
+    $link.find('.badge').css('margin-left','-4px');
+    // Add logic
+    $link.on('click', () => {
+        let reveal = true;
+        $('.' + hiddenMarker).each(function() {
+            const $this = $(this);
+            const thisField = $this.attr('sq_id');
+            const embedded = $this.hasClass('row-field-embedded');
+            // Restore original classes
+            const classes = $this.attr(hiddenStore) ?? '';
+            $this.removeClass(hiddenMarker).addClass(classes);
+            if (embedded) $('.rc-field-embed[var="' + thisField + '"]').addClass('hide');
+            reveal = false;
+        })
+        log('Toggled hidden fields: ' + (reveal ? 'Reveal' : 'Restore (Hide)'));
+        if (reveal) {
+            $(hiddenSelector).each((_,el) => {
+                const $this = $(el);
+                const thisField = $this.attr('sq_id');
+                // Store original classes
+                const classes = hiddenClasses.filter(c => $this.hasClass(c)).join(' ');
+                $this.attr(hiddenStore, classes);
+                // Is the field embedded? 
+                const embedded = $this.hasClass('row-field-embedded');
+                const $drawnOn = embedded ? $('.rc-field-embed[var="' + thisField + '"]') : $this;
+                // Apply marker and reveal
+                $this.addClass(hiddenMarker);
+                $drawnOn.css({
                     'outline': 'solid 2px',
                     'outline-offset': config.isSurvey ? '-3px' : '-1px',
                     'outline-color': 'argb(255,0,0,.25)'
-                }).removeClass('@HIDDEN').addClass('ai-hidden-removed');
-            }
-        });
-        $afb.after($link).after('<br>');
+                });
+                $drawnOn.removeClass(embedded ? 'hide' : classes);
+            });
+        }
     });
+    // Hook into displayFormSaveBtnTooltip()
+    const orig_displayFormSaveBtnTooltip = window['displayFormSaveBtnTooltip'];
+    window['displayFormSaveBtnTooltip'] = function() {
+        $link.appendTo('body');
+        orig_displayFormSaveBtnTooltip();
+        // Add reveal link
+        $('#auto-fill-btn').after($link).after('<br>');
+    };
+    // Display link
+    window['displayFormSaveBtnTooltip']();
 }
 
-
+/**
+ * Adds field annotations to data entry forms and surveys
+ * @param {Object} config 
+ * @returns 
+ */
 function addFormAnnotations(config) {
     const isSurvey = config.isSurvey;
     if (typeof config.fields !== 'object') return;
@@ -171,19 +210,21 @@ function addFormAnnotations(config) {
             $annotation.append($copy);
             $annotation.prepend('<br>');
         }
-        $annotation.prepend('<small><i> &ndash; ' + field + '</i></small>')
+        $annotation.prepend('<small><i> &ndash; <span class="ai-copy-field-name">' + field + '</span></i></small>')
         const $badge = $badgeTemplate.clone();
         $annotation.prepend($badge);
         if (embedded) {
             $badge.removeClass('badge-info').addClass('badge-warning');
             const $embed = $('span.rc-field-embed[var="' + field + '"]')
+            let origOutline;
             $embed.parents('tr[sq_id]').find('td').not('.questionnum').first().append($annotation);
             $badge.css('cursor', 'crosshair');
             $badge.on('mouseenter', function() {
-                $embed.css('outline', 'red dotted 2px');
+                origOutline = $embed.css('outline');
+                $embed.css('outline', 'orange dotted 3px');
             });
             $badge.on('mouseleave', function() {
-                $embed.css('outline','none');
+                $embed.css('outline', origOutline);
             });
             $badge.on('click', function() {
                 $embed.find('input').trigger('focus');
@@ -192,16 +233,23 @@ function addFormAnnotations(config) {
         else {
             $('div[data-mlm-field="' + field + '"]').after($annotation);
         }
+        // Add copy field name functionality
+        $annotation.find('.ai-copy-field-name').on('click', (e) => {
+            copyTextToClipboard(e.ctrlKey ? '['+field+']' : field);
+        });
     }
 }
 
-
+/**
+ * Adds enhancements to the Online Designer's field list
+ * @param {Object} config 
+ */
 function addDesignerEnhancements(config) {
     $('span[data-kind="variable-name"]').each(function() {
         const $field = $(this);
         const fieldName = $field.text();
         const $variable = $field.prev('i');
-        const $wrapper = $('<span class="copy-field-name"></span>');
+        const $wrapper = $('<span class="ai-copy-field-name"></span>');
         $variable.before($wrapper);
         $wrapper.append($variable);
         $wrapper.append('&nbsp;');
@@ -209,8 +257,8 @@ function addDesignerEnhancements(config) {
         $wrapper.on('mousedown', function(e) {
             e.stopImmediatePropagation();
         })
-        $wrapper.on('click', function() {
-            copyTextToClipboard(fieldName);
+        $wrapper.on('click', function(e) {
+            copyTextToClipboard(e.ctrlKey ? '['+fieldName+']' : fieldName);
             $wrapper.addClass('clicked');
             setTimeout(() => {
                 $wrapper.removeClass('clicked');
@@ -219,25 +267,26 @@ function addDesignerEnhancements(config) {
         })
         const text = '' + config.fields[fieldName] ?? '';
         const $badge = $('<span class="badge badge-info ai-badge" style="font-weight:normal;">AI</span>');
-        if (text.length > 0) {
-            const $code = $('<div><div class="ai-code-wrapper"><code class="ai-code"></code></div></div>');
-            $code.find('code').text(text);
-            // @ts-ignore
-            const popover = new bootstrap.Popover($badge.get(0), {
-                html: true,
-                placement: 'bottom',
-                title: config.codeTitle,
-                content: $code.html(),
-                trigger: 'click hover'
+        const $code = $('<div><div class="ai-code-wrapper"><code class="ai-code"></code></div></div>');
+        $code.find('code').text(text);
+        // @ts-ignore
+        const popover = new bootstrap.Popover($badge.get(0), {
+            html: true,
+            placement: 'bottom',
+            title: config.codeTitle,
+            content: $code.html(),
+            trigger: 'click' + (text.length > 0 ? ' hover' : '')
+        });
+        $badge.addClass('ai-badge-annotations');
+        $badge.on('inserted.bs.popover', () => {
+            const $tip = $(popover.tip);
+            $tip.css({
+                'max-width': '500px',
+                'min-width': '200px'
             });
-            $badge.addClass('ai-badge-annotations');
-            $badge.on('inserted.bs.popover', () => {
-                const $tip = $(popover.tip);
-                $tip.css('max-width', '500px');
-                const $edit = $('<button class="btn btn-xs ai-code-edit">Edit</button>');
-                $tip.find('.popover-header').append($edit);
-            });
-        }
+            const $edit = $('<button class="btn btn-xs ai-code-edit">Edit</button>');
+            $tip.find('.popover-header').append($edit);
+        });
         $('#design-' + fieldName + ' span.od-field-icons').append($badge);
     });
 }
@@ -281,7 +330,7 @@ function addQueryRecordExecute(config) {
 
 //#endregion
 
-//#region Clipboard
+//#region Clipboard Helper
 
 /**
  * Copies a string to the clipboard (fallback method for older browsers)
