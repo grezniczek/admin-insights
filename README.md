@@ -57,3 +57,10 @@ Note, editing field annotations is not implemented yet.
 Version | Description
 ------- | --------------------
 v1.0.0  | Initial release.
+
+
+### Todos
+
+- Toggling features on the page where the feature is injected should have immediate effect (i.e., without reloading hte page)
+- Edit field annotations in Designer overview
+- Edit field annotations and branching logic directly in forms/surveys (only in dev projects) - this will require a page reload
