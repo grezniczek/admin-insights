@@ -5,6 +5,7 @@ use ExternalModules\AbstractExternalModule;
 use InvalidArgumentException;
 
 require_once "classes/User.php";
+require_once "classes/InjectionHelper.php";
 
 /**
  * Provides enhancements to the External Module Management pages.
@@ -17,11 +18,18 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
      */
     private $fw;
 
+    /**
+     * @var InjectionHelper
+     */
+    public $ih = null;
+
+
     private $js_injected = false;
 
     function __construct() {
         parent::__construct();
         $this->fw = $this->framework;
+        $this->ih = InjectionHelper::init($this);
     }
 
     #region Hooks
@@ -190,16 +198,9 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
     private function inject_js() {
         // Only do this once
         if ($this->js_injected) return;
-        
-        // Inline for survey
-        if (PageInfo::IsSurvey()) {
-            print "\n<script>\n";
-            print file_get_contents(dirname(__FILE__)."/js/admin-insights.js");
-            print "\n</script>\n";
-        }
-        else {
-            print "\n<script src='{$this->getUrl('js/admin-insights.js')}'></script>\n";
-        }
+        // Inject JS and CSS
+        $this->ih->js("js/admin-insights.js", PageInfo::IsSurvey());
+        $this->ih->css("css/admin-insights.css", PageInfo::IsSurvey());
         $this->initializeJavascriptModuleObject();
         $this->js_injected = true;
     }
@@ -229,42 +230,6 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         foreach ($fields as $field) {
             $misc = $Proj->metadata[$field]["misc"] ?? "";
             $config["fields"][$field] = $misc;
-        }
-        if (count($fields)) {
-            // CSS
-            ?>
-<style>
-    .copy-field-name { 
-        cursor: pointer !important; 
-        padding: 0 5px;
-        margin-left: -1em;
-    }
-    .copy-field-name:hover {
-        color: var(--bs-primary);
-    }
-    .copy-field-name.clicked {
-        background-color: yellow;
-    }
-    .ai-badge {
-        margin-left: 0.5em;
-    }
-    .ai-badge.ai-badge-annotations {
-        cursor: pointer !important;
-    }
-    .ai-code {
-        white-space: pre;
-    }
-    .ai-code-wrapper {
-        line-height: 13px;
-        font-size: 12px;
-    }
-    .ai-code-edit {
-        position: absolute;
-        top: 7px;
-        right: 5px;
-    }
-</style>
-           <?php
         }
         return true;
     }

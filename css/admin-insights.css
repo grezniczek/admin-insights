@@ -1,0 +1,33 @@
+.ai-copy-field-name { 
+    cursor: pointer !important; 
+    padding: 0 5px;
+    margin-left: -1em;
+}
+.ai-copy-field-name:hover {
+    color: var(--bs-primary);
+}
+.ai-copy-field-name.clicked {
+    background-color: yellow;
+}
+.ai-field-annotation .ai-copy-field-name {
+    margin-left: -0.5em;
+}
+
+.ai-badge {
+    margin-left: 0.5em;
+}
+.ai-badge.ai-badge-annotations {
+    cursor: pointer !important;
+}
+.ai-code {
+    white-space: pre;
+}
+.ai-code-wrapper {
+    line-height: 13px;
+    font-size: 12px;
+}
+.ai-code-edit {
+    position: absolute;
+    top: 7px;
+    right: 5px;
+}
