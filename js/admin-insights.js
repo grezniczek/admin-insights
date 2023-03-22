@@ -173,16 +173,22 @@ function addRevealHidden(config) {
             });
         }
     });
-    // Hook into displayFormSaveBtnTooltip()
-    const orig_displayFormSaveBtnTooltip = window['displayFormSaveBtnTooltip'];
-    window['displayFormSaveBtnTooltip'] = function() {
-        $link.appendTo('body');
-        orig_displayFormSaveBtnTooltip();
-        // Add reveal link
-        $('#auto-fill-btn').after($link).after('<br>');
-    };
-    // Display link
-    window['displayFormSaveBtnTooltip']();
+    if (config.isSurvey) {
+        // Add to admin controls
+        $('#admin-controls-div').append('<br>').append($link);
+    }
+    else {
+        // Hook into displayFormSaveBtnTooltip()
+        const orig_displayFormSaveBtnTooltip = window['displayFormSaveBtnTooltip'];
+        window['displayFormSaveBtnTooltip'] = function() {
+            $link.appendTo('body');
+            orig_displayFormSaveBtnTooltip();
+            // Add reveal link
+            $('#auto-fill-btn').after($link).after('<br>');
+        };
+        // Display link
+        window['displayFormSaveBtnTooltip']();
+    }
 }
 
 /**
