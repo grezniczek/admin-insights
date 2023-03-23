@@ -26,13 +26,14 @@ let initialized = false;
 
 const activeFeatures = new Set();
 
-const featureMapper = new Map();
-featureMapper.set('reveal-hidden', { added: false, init: addRevealHidden });
-featureMapper.set('survey-annotations', { added: false, init: addFormAnnotations });
-featureMapper.set('data-entry-annotations', { added: false, init: addFormAnnotations });
-featureMapper.set('designer-enhancements', { added: false, init: addDesignerEnhancements });
-featureMapper.set('query-record-rhp', { added: false, init: addQueryRecordLinks });
-featureMapper.set('query-record-dqt', { added: false, init: addQueryRecordExecute });
+const features = new Map();
+features.set('reveal-hidden', { added: false, init: addRevealHidden });
+features.set('survey-annotations', { added: false, init: addFormAnnotations });
+features.set('data-entry-annotations', { added: false, init: addFormAnnotations });
+features.set('designer-enhancements', { added: false, init: addDesignerEnhancements });
+features.set('query-record-rhp', { added: false, init: addQueryRecordLinks });
+features.set('query-record-dqt', { added: false, init: addQueryRecordExecute });
+features.set('show-record-log-rhp', { added: false, init: addViewRecordLoggingLink });
 
 //#endregion
 
@@ -68,13 +69,17 @@ function initialize(config_data, jsmo_obj = null) {
         }
     }
     // Add features
-    featureMapper.forEach((feature, name) => {
-        if (!feature.added && typeof config[name] !== 'undefined') {
+    for (const featureConfig of config.features) {
+        const feature = features.get(featureConfig.feature);
+        if (feature) {
+            log('Adding feature "' + featureConfig.feature + '"', featureConfig);
             feature.added = true;
-            log('Adding feature "' + name + '"', config[name]);
-            feature.init(config[name]);
+            feature.init(featureConfig);
         }
-    });
+        else {
+            error('Unknown feature:', feature);
+        }
+    }
 }
 
 /**
@@ -303,28 +308,57 @@ function addDesignerEnhancements(config) {
 }
 
 /**
+ * Creates a menu item for the "Choose action for record" menu on the Record Home Page
+ * @param {string} href 
+ * @param {string} label 
+ * @param {Function|null} onClick 
+ */
+function createRecordHomePageActionListItem(href, label, onClick = null) {
+    const $li = $('<li class="ui-menu-item"><a target="_blank" style="display:block;" tabindex="-1" role="menuitem" class="ui-menu-item-wrapper"><span style="vertical-align:middle;color:#065499;"></span></a></li>');
+    $li.find('a').attr('href', href);
+    $li.find('span').html(label);
+    if (onClick != null) {
+        // @ts-ignore
+        $li.on('click', onClick);
+    }
+    return $li;
+}
+
+/**
+ * Returns the ul element of the "Choose action for record" menu on the Record Home Page
+ */
+function getRecordHomePageActionMenu() {
+    return  $('#recordActionDropdown');
+}
+
+/**
  * Adds links to query a records data or logs to the action dropdown on the Record Home Page.
  * @param {Object} config 
  */
 function addQueryRecordLinks(config) {
-    $(() => {
-        const url = new URL(config.dqtLink);
-        url.searchParams.set('ai-query-pid', config.pid);
-        url.searchParams.set('ai-query-id', config.record);
-        const $ul = $('#recordActionDropdown');
-        const $li = $('<li class="ui-menu-item"><a target="_blank" style="display:block;" tabindex="-1" role="menuitem" class="ui-menu-item-wrapper"><span style="vertical-align:middle;color:#065499;"><i class="fas fa-database"></i> <span data-ai-label></span></span></a></li>')
-        // Query data
-        url.searchParams.set('ai-query-for', 'data');
-        $li.find('a').attr('href', url.toString());
-        $li.find('[data-ai-label]').html(config.labelData);
-        $ul.append($li.clone().on('click', () => $('#recordActionDropdownTrigger').trigger('click')));
-        // Query logs
-        url.searchParams.set('ai-query-for', 'logs');
-        $li.find('a').attr('href', url.toString());
-        $li.find('[data-ai-label]').html(config.labelLogs);
-        $ul.append($li.clone().on('click', () => $('#recordActionDropdownTrigger').trigger('click')));
-        $li.remove();
-    });
+    const url = new URL(config.dqtLink);
+    url.searchParams.set('ai-query-pid', config.pid);
+    url.searchParams.set('ai-query-id', config.record);
+    const $menu = getRecordHomePageActionMenu();
+    const icon = '<i class="fas fa-database"></i> ';
+    // Query data
+    url.searchParams.set('ai-query-for', 'data');
+    $menu.append(createRecordHomePageActionListItem(url.toString(), icon + config.labelData));
+    // Query logs
+    url.searchParams.set('ai-query-for', 'logs');
+    $menu.append(createRecordHomePageActionListItem(url.toString(), icon + config.labelLogs));
+}
+
+/**
+ * Adds a link to view the Logging page for a record to the action dropdown on the Record Home Page.
+ * @param {Object} config 
+ */
+function addViewRecordLoggingLink(config) {
+    const url = new URL(config.url);
+    url.searchParams.append('record', config.record);
+    const $menu = getRecordHomePageActionMenu();
+    const icon = '<i class="fas fa-receipt"></i> ';
+    $menu.append(createRecordHomePageActionListItem(url.toString(), icon + config.label));
 }
 
 /**

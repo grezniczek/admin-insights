@@ -101,7 +101,7 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         else if (PageInfo::IsExistingRecordHomePage()) {
             $context["record"] = $_GET["id"];
             $context["arm"] = $_GET["arm"];
-            $this->add_features(["query-record-rhp"], $context);
+            $this->add_features(["show-record-log-rhp", "query-record-rhp"], $context);
         }
         // Database Query Tool
         else if (PageInfo::IsDatabaseQueryTool() && isset($_GET["ai-query-for"])) {
@@ -160,32 +160,30 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
     #region Feature Management
 
     /**
-     * Maps feature names to setup functions (in this class)
-     * @var Array string => func
-     */
-    private $feature_function_map = [
-        "designer-enhancements" => "designer_enhancements",
-        "data-entry-annotations" => "form_annotations",
-        "survey-annotations" => "form_annotations",
-        "reveal-hidden" => "reveal_hidden",
-        "query-record-rhp" => "query_record_rhp",
-        "query-record-dqt" => "query_record_dqt"
-    ];
-
-    /**
      * Adds features to a page. This can be called multiple times
      * @param string[] $features List of the features to add
      * @param Array $context 
      * @return void 
      */
     private function add_features($features, $context) {
-        $config = [];
+        $config = [
+            "features" => [],
+            "errors" => []
+        ];
         foreach ($features as $feature) {
-            $feature_func = $this->feature_function_map[$feature];
-            $feature_config = [];
-            if ($this->$feature_func($context, $feature_config) === true) {
-                // Only add when true is returned
-                $config[$feature] = $feature_config;
+            $feature_func = "feature__" . str_replace("-", "_", $feature);
+            $feature_config = ["feature" => $feature];
+            try {
+                if ($this->$feature_func($context, $feature_config) === true) {
+                    // Only add when true is returned
+                    $config["features"][] = $feature_config;
+                }
+            }
+            catch (\Throwable $ex) {
+                $config["errors"][] = [
+                    "msg" => "Failed to add feature '$feature'.",
+                    "details" => $ex->getMessage()
+                ];
             }
         }
         $this->inject_js();
@@ -222,7 +220,10 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #region Features
 
-    private function designer_enhancements($context, &$config) {
+    // Features must be called "feature__" + feature id and take $context and (by ref) $config as arguments and
+    // return a boolean (determining whether the feature will be included in the JS config)
+
+    private function feature__designer_enhancements($context, &$config) {
         $config["fields"] = [];
         $config["codeTitle"] = $this->tt("designer_code_title");
         $Proj = new \Project($context["pid"]);
@@ -232,6 +233,14 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
             $config["fields"][$field] = $misc;
         }
         return true;
+    }
+
+    private function feature__data_entry_annotations($context, &$config) {
+        return $this->form_annotations($context, $config);
+    }
+
+    private function feature__survey_annotations($context, &$config) {
+        return $this->form_annotations($context, $config);
     }
 
     private function form_annotations($context, &$config) {
@@ -253,13 +262,13 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         return true;
     }
 
-    private function reveal_hidden($context, &$config) {
+    private function feature__reveal_hidden($context, &$config) {
         $config["linkLabel"] = "<span class=\"badge badge-info\" style=\"font-weight:normal;font-size:80%;\">AI</span> ".$this->tt("reveal_hidden_link_label");
         $config["isSurvey"] = $context["is_survey"];
         return true;
     }
 
-    private function query_record_rhp($context, &$config) {
+    private function feature__query_record_rhp($context, &$config) {
         $config["record"] = $context["record"];
         $config["pid"] = $context["pid"];
         $config["dqtLink"] = APP_PATH_WEBROOT_FULL."redcap_v".REDCAP_VERSION."/ControlCenter/database_query_tool.php";
@@ -268,7 +277,7 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         return true;
     }
 
-    private function query_record_dqt($context, &$config) {
+    private function feature__query_record_dqt($context, &$config) {
         $mode = $_GET["ai-query-for"];
         if (!in_array($mode, ["data","logs"], true)) return false;
         $record = db_escape($_GET["ai-query-id"]);
@@ -282,6 +291,13 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
             $config["query"] = "SELECT *\n FROM {$log_event_table}\n WHERE `project_id` = {$pid} AND `pk` = '{$record}'\n ORDER BY `log_event_id` DESC";
         }
         $config["csrfToken"] = $this->getCSRFToken();
+        return true;
+    }
+
+    private function feature__show_record_log_rhp($context, &$config) {
+        $config["record"] = $context["record"];
+        $config["url"] = APP_PATH_WEBROOT_FULL."redcap_v".REDCAP_VERSION."/Logging/index.php?pid=".$context["pid"];
+        $config["label"] = "<span class=\"badge badge-info\" style=\"font-weight:normal\">AI</span> ". $this->tt("show_logging_link_label");
         return true;
     }
 
