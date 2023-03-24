@@ -57,16 +57,12 @@ function initialize(config_data, jsmo_obj = null) {
     }
     else {
         // Merge configuration
-        let updated = false;
-        for (const key of Object.keys(config_data)) {
-            if (typeof config[key] == 'undefined') {
-                config[key] = config_data[key];
-                updated = true;
-            }
-        }
-        if (updated) {
-            log('Updated configuration', config);
-        }
+        config.features = [...config.features, ...config_data.features];
+        log('Updated configuration', config);
+    }
+    // Report any errors
+    for (const error of config_data.errors) {
+        error(error.msg, error.details)
     }
     // Add features
     for (const featureConfig of config.features) {
