@@ -29,7 +29,7 @@ Some features are always enabled, while some can be turned on or off using the t
 
 ### **Record data and logs query links**
 
-Adds shortcuts link for to the _Record Actions_ menu on the _Record Home Page_ that open the _Database Query Tool_ in a new browser tab, automatically performing a query for the record in the _redcap_data_ or the appropriate logs table.  
+Adds shortcuts link for to the _Record Actions_ menu on the _Record Home Page_ that open the _Database Query Tool_ in a new browser tab, automatically performing a query for the record in the _redcap_data_ or the appropriate logs table. It also adds a link to the _Logging_ page, preselecting the record. The links open in new tabs.  
 ![Query links](images/QueryLinks.png)
 
 ### **Hidden Field Revealer**
@@ -39,7 +39,7 @@ On data entry forms and surveys, if there are hidden fields, a link is provided 
 
 ### **Data Entry / Survey Annotations**
 
- When enabled, field annotations will be displayed on data entry forms and survey pages in the respective field's label. In case the field is embedded, the annotations will be appended to the embedding container.  
+ When enabled, field annotations will be displayed on data entry forms and survey pages in the respective field's label. In case the field is embedded, the annotations will be appended to the embedding container. This works with **Shazam**, too.  
  ![Field annotations](images/FieldAnnotations.png)  
  Click field names to copy them to the clipboard (wrapped in square brackets when the `CTRL` is pressed while clicking).
 
