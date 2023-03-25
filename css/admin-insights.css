@@ -31,3 +31,11 @@
     top: 7px;
     right: 5px;
 }
+.badge.ai-embedded {
+    cursor: crosshair;
+    background-color: var(--bs-warning);
+    color: var(--bs-black);
+}
+.ai-embedded-outline {
+    outline: orange dotted 3px;
+}
