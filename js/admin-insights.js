@@ -200,6 +200,24 @@ function addRevealHidden(config) {
 function addFormAnnotations(config) {
     const isSurvey = config.isSurvey;
     if (typeof config.fields !== 'object') return;
+    // Shazam support
+    if (typeof window['Shazam'] !== 'undefined') {
+        window['Shazam'].beforeDisplayCallback = function() {
+            log('Compensating for Shazam');
+            $('tr[sq_id].shazam-vanished .ai-field-annotation').each(function() {
+                const $annotation = $(this);
+                const $tr = $annotation.parents('[sq_id]');
+                const fieldName = $tr.attr('sq_id');
+                const $shazCont = $('.shazam [name="' + fieldName + '"]').parents('.shazam');
+                const $td = $('.shazam [name="' + fieldName + '"]').parents('tr[sq_id]').find('td.labelrc').last();
+                const $sa = $annotation.clone(true);
+                const $badge = $sa.find('.badge')
+                $badge.addClass('ai-embedded');
+                $td.append($sa);
+                setupEmbeddeBadgeBehavior($badge, $shazCont);
+            });
+        }
+    }
     const $badgeTemplate = $('<span class="badge badge-info" style="font-weight:normal;margin-bottom:.5em;">AI</span>');
     const $copyTemplate = $('<a href="javascript:;" style="position:absolute;top:3px;right:5px;"><i class="far fa-copy fs10"></i></a>')
     for (const field of Object.keys(config.fields)) {
@@ -221,21 +239,9 @@ function addFormAnnotations(config) {
         const $badge = $badgeTemplate.clone();
         $annotation.prepend($badge);
         if (embedded) {
-            $badge.removeClass('badge-info').addClass('badge-warning');
             const $embed = $('span.rc-field-embed[var="' + field + '"]')
-            let origOutline;
             $embed.parents('tr[sq_id]').find('td').not('.questionnum').first().append($annotation);
-            $badge.css('cursor', 'crosshair');
-            $badge.on('mouseenter', function() {
-                origOutline = $embed.css('outline');
-                $embed.css('outline', 'orange dotted 3px');
-            });
-            $badge.on('mouseleave', function() {
-                $embed.css('outline', origOutline);
-            });
-            $badge.on('click', function() {
-                $embed.find('input').trigger('focus');
-            });
+            setupEmbeddeBadgeBehavior($badge, $embed);
         }
         else {
             $('div[data-mlm-field="' + field + '"]').after($annotation);
@@ -250,6 +256,18 @@ function addFormAnnotations(config) {
             }, 300);
         });
     }
+}
+function setupEmbeddeBadgeBehavior($badge, $container) {
+    $badge.addClass('ai-embedded');
+    $badge.on('mouseenter', function() {
+        $container.addClass('ai-embedded-outline');
+    });
+    $badge.on('mouseleave', function() {
+        $container.removeClass('ai-embedded-outline');
+    });
+    $badge.on('click', function() {
+        $container.find('input').trigger('focus');
+    });
 }
 
 /**
