@@ -208,8 +208,14 @@ function addFormAnnotations(config) {
                 const $annotation = $(this);
                 const $tr = $annotation.parents('[sq_id]');
                 const fieldName = $tr.attr('sq_id');
-                const $shazCont = $('.shazam [name="' + fieldName + '"]').parents('.shazam');
                 const $td = $('.shazam [name="' + fieldName + '"]').parents('tr[sq_id]').find('td.labelrc').last();
+                const $shazCont = $('.shazam [name="' + fieldName + '"]').parents('.shazam');
+                const $shazContRow = $shazCont.parents('tr[sq_id]');
+                // Add annotation for Shazam container itself (Shazam removes it)
+                const shazFieldName = $shazContRow.attr('sq_id');
+                if ($shazContRow.find('.ai-field-annotation[data-ai-field="' + shazFieldName + '"]').length == 0) {
+                    $td.append(createFieldAnnotation(shazFieldName, getFieldAnnotationText(config, shazFieldName)));
+                }
                 const $sa = $annotation.clone(true);
                 const $badge = $sa.find('.badge')
                 $badge.addClass('ai-embedded');
@@ -218,45 +224,53 @@ function addFormAnnotations(config) {
             });
         }
     }
-    const $badgeTemplate = $('<span class="badge badge-info" style="font-weight:normal;margin-bottom:.5em;">AI</span>');
-    const $copyTemplate = $('<a href="javascript:;" style="position:absolute;top:3px;right:5px;"><i class="far fa-copy fs10"></i></a>')
     for (const field of Object.keys(config.fields)) {
         const embedded = $('[sq_id="' + field + '"]').hasClass('row-field-embedded');
-        const $annotation = $('<div class="ai-field-annotation" style="position:relative;font-weight:normal;padding:0.5em;margin-top:0.5em;background-color:#fafafa;"></div>');
-        const $code = $('<code style="white-space:pre;margin-top:0.5em;"></code>');
-        const text = '' + config.fields[field] ?? '';
-        if (text.length > 0) {
-            $code.text(text);
-            $annotation.append($code);
-            const $copy = $copyTemplate.clone();
-            $copy.on('click', () => {
-                copyTextToClipboard(text);
-            });
-            $annotation.append($copy);
-            $annotation.prepend('<br>');
-        }
-        $annotation.prepend('<small><i> &ndash; <span class="ai-copy-field-name">' + field + '</span></i></small>')
-        const $badge = $badgeTemplate.clone();
-        $annotation.prepend($badge);
+        const $annotation = createFieldAnnotation(field, getFieldAnnotationText(config, field));
         if (embedded) {
             const $embed = $('span.rc-field-embed[var="' + field + '"]')
             $embed.parents('tr[sq_id]').find('td').not('.questionnum').first().append($annotation);
-            setupEmbeddeBadgeBehavior($badge, $embed);
+            setupEmbeddeBadgeBehavior($annotation.find('.badge'), $embed);
         }
         else {
             $('div[data-mlm-field="' + field + '"]').after($annotation);
         }
-        // Add copy field name functionality
-        $annotation.find('.ai-copy-field-name').on('click', (e) => {
-            copyTextToClipboard(e.ctrlKey ? '['+field+']' : field);
-            const $copy = $(e.target);
-            $copy.addClass('clicked');
-            setTimeout(() => {
-                $copy.removeClass('clicked');
-            }, 300);
-        });
     }
 }
+
+function getFieldAnnotationText(config, field) {
+    return '' + config.fields[field] ?? ''
+}
+
+function createFieldAnnotation(field, text) {
+    const $annotation = $('<div class="ai-field-annotation" style="position:relative;font-weight:normal;padding:0.5em;margin-top:0.5em;background-color:#fafafa;"></div>');
+    $annotation.attr('data-ai-field', field);
+    const $code = $('<code style="white-space:pre;margin-top:0.5em;"></code>');
+    if (text.length > 0) {
+        $code.text(text);
+        $annotation.append($code);
+        const $copy = $('<a href="javascript:;" style="position:absolute;top:3px;right:5px;"><i class="far fa-copy fs10"></i></a>');
+        $copy.on('click', () => {
+            copyTextToClipboard(text);
+        });
+        $annotation.append($copy);
+        $annotation.prepend('<br>');
+    }
+    $annotation.prepend('<small><i> &ndash; <span class="ai-copy-field-name">' + field + '</span></i></small>')
+    // Add copy field name functionality
+    $annotation.find('.ai-copy-field-name').on('click', (e) => {
+        copyTextToClipboard(e.ctrlKey ? '['+field+']' : field);
+        const $copy = $(e.target);
+        $copy.addClass('clicked');
+        setTimeout(() => {
+            $copy.removeClass('clicked');
+        }, 300);
+    });
+    const $badge = $('<span class="badge badge-info" style="font-weight:normal;margin-bottom:.5em;">AI</span>');
+    $annotation.prepend($badge);
+    return $annotation;
+}
+
 function setupEmbeddeBadgeBehavior($badge, $container) {
     $badge.addClass('ai-embedded');
     $badge.on('mouseenter', function() {
