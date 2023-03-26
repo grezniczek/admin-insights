@@ -2,15 +2,17 @@
 
 use Exception;
 use ExternalModules\AbstractExternalModule;
-use InvalidArgumentException;
 
-require_once "classes/User.php";
 require_once "classes/InjectionHelper.php";
+require_once "classes/PageInfo.php";
+require_once "classes/User.php";
 
 /**
  * Provides enhancements to the External Module Management pages.
  */
 class AdminInsightsExternalModule extends AbstractExternalModule {
+
+    #region Constructor & Variables
 
     /**
      * EM Framework (tooling support)
@@ -23,7 +25,6 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
      */
     public $ih = null;
 
-
     private $js_injected = false;
 
     function __construct() {
@@ -31,6 +32,8 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         $this->fw = $this->framework;
         $this->ih = InjectionHelper::init($this);
     }
+
+    #endregion
 
     #region Hooks
 
@@ -303,8 +306,6 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #endregion
 
-
-
     #region Helpers
 
     private function getFeatureState($feature) {
@@ -323,160 +324,4 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #endregion
 
-
-
-    function insertFieldAnnotations($form, $designer = false) {
-        global $Proj;
-        foreach ($Proj->forms[$form]["fields"] as $field => $_) {
-            $annotations = $Proj->metadata[$field]["misc"];
-            print "<div class=\"emdt-field-annotation\" data-target=\"{$field}\" style=\"display:none;font-weight:normal;padding:0.5em;margin-top:0.5em;background-color:#fafafa;\"><code style=\"white-space:pre;margin-top:0.5em;\">{$annotations}</code></div>\n";
-        }
-        ?>
-        <style>
-            .copy-field-name { 
-                cursor: hand !important;
-            }
-            .copy-field-name:hover {
-                color: var(--bs-primary);
-            }
-        </style>
-        <script>
-            // EMM Tools - Append Field Annotations
-            function EMMTools_init() {
-                var designer = <?= json_encode($designer) ?>;
-                if (designer) {
-                    $('span[data-kind="variable-name"]').each(function() {
-                        const $this = $(this)
-                        $this.addClass('copy-field-name text-info')
-                        $this.on('mousedown', function(e) {
-                            e.stopImmediatePropagation()
-                        })
-                        const field = $this.text()
-                        $this.on('click', function() {
-                            EMMTools_copyTextToClipboard(field);
-                            $this.css('background-color', 'red')
-                            setTimeout(function() {
-                                $this.css('background-color', 'transparent')
-                            }, 200)
-                            return false;
-                        })
-                        $annotation = $('.emdt-field-annotation[data-target="' + field + '"]')
-                        if ($annotation.length) {
-                            const $badge = $('<span class="badge badge-info" style="font-weight:normal;">EMDT</span>');
-                            $badge.attr('title', $annotation.text()).css('margin-left','1em');
-                            $('#design-' + field + ' span.od-field-icons').append($badge);
-                        }
-                    })
-                }
-                else {
-                    $('.emdt-field-annotation').each(function() {
-                        const $annotation = $(this);
-                        const field = $annotation.attr('data-target');
-                        const $badge = $('<span class="badge badge-info" style="font-weight:normal;">EMDT</span>');
-                        const embedded = $('[sq_id="' + field + '"]').hasClass('row-field-embedded');
-                        $badge.css('margin-bottom','0.5em');
-                        $annotation.prepend('<br>');
-                        $annotation.prepend($badge);
-                        $badge.after('<small><i> &ndash; ' + field + '</i></small>');
-                        if (embedded) {
-                            $badge.removeClass('badge-info').addClass('badge-warning');
-                            var $embed = $('span.rc-field-embed[var="' + field + '"]')
-                            $embed.parents('tr[sq_id]').find('td').not('.questionnum').first().append($annotation);
-                            $badge.css('cursor', 'crosshair');
-                            $badge.on('mouseenter', function() {
-                                $embed.css('outline', 'red dotted 2px');
-                            });
-                            $badge.on('mouseleave', function() {
-                                $embed.css('outline','none');
-                            });
-                            $badge.on('click', function() {
-                                $embed.find('input').focus();
-                            });
-                        }
-                        else {
-                            $('div[data-mlm-field="' + field + '"]').after($annotation);
-                        }
-                        $annotation.show();
-                    })
-                }
-            }
-            $(function() {
-                if (<?=json_encode($designer)?>) {
-                    const EMMTools_reloadDesignTable = reloadDesignTable
-                    reloadDesignTable = function(form_name, js) {
-                        EMMTools_reloadDesignTable(form_name, js)
-                        setTimeout(function() {
-                            EMMTools_init()
-                        }, 50)
-                    }
-                }
-                EMMTools_init()
-            });
-        </script>
-        <?php
-    }
-
-}
-
-class PageInfo {
-
-    private static function getPage() {
-        return defined("PAGE") ? PAGE : false;
-    }
-
-    public static function IsRecordHomePage() {
-        return self::getPage() === "DataEntry/record_home.php";
-    }
-
-    public static function IsExistingRecordHomePage() {
-        return self::IsRecordHomePage() && !isset($_GET["auto"]);
-    }
-
-    public static function IsSystemExternalModulesManager() {
-        return self::getPage() === "manager/control_center.php";
-    }
-
-    public static function IsProjectExternalModulesManager() {
-        return self::getPage() === "manager/project.php";
-    }
-
-    public static function IsDevelopmentFramework($module) {
-        return strpos($module->framework->getUrl("dummy.php"), "/external_modules/?prefix=") !== false;
-    }
-
-    public static function IsDatabaseQueryTool() {
-        return self::getPage() === "ControlCenter/database_query_tool.php";
-    }
-
-    public static function IsDesigner() {
-        return self::getPage() === "Design/online_designer.php";
-    }
-
-    public static function GetDesignerForm() {
-        if (self::IsDesigner() && isset($_GET["page"])) {
-            return $_GET["page"];
-        }
-        return null;
-    }
-
-    public static function IsDataEntry() {
-        return self::getPage() === "DataEntry/index.php" && isset($_GET["page"]);
-    }
-
-    public static function IsExistingRecordDataEntry() {
-        return self::IsDataEntry() && !isset($_GET["auto"]);
-    }
-
-    public static function IsSurvey() {
-        return self::getPage() === "surveys/index.php";
-    }
-
-    public static function HasGETParameter($name) {
-        return isset($_GET[$name]);
-    }
-
-    public static function SanitizeProjectID($pid) {
-        $clean = is_numeric($pid) ? $pid * 1 : null;
-        return is_int($clean) ? $clean : null;
-    }
 }
