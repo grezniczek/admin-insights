@@ -226,14 +226,18 @@ function addFormAnnotations(config) {
     }
     for (const field of Object.keys(config.fields)) {
         const embedded = $('[sq_id="' + field + '"]').hasClass('row-field-embedded');
-        const $annotation = createFieldAnnotation(field, getFieldAnnotationText(config, field));
         if (embedded) {
+            const $annotation = createFieldAnnotation(field, getFieldAnnotationText(config, field));
             const $embed = $('span.rc-field-embed[var="' + field + '"]')
             $embed.parents('tr[sq_id]').find('td').not('.questionnum').first().append($annotation);
             setupEmbeddeBadgeBehavior($annotation.find('.badge'), $embed);
         }
         else {
-            $('div[data-mlm-field="' + field + '"]').after($annotation);
+            $('div[data-mlm-field="' + field + '"]').each(function() {
+                const $target = $(this);
+                const $annotation = createFieldAnnotation(field, $target.attr('data-mlm-type') == 'header' ? '' : getFieldAnnotationText(config, field));
+                $target.after($annotation);
+            });
         }
     }
 }
