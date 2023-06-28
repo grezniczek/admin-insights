@@ -37,7 +37,7 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #region Hooks
 
-    function redcap_data_entry_form ($project_id, $record = NULL, $instrument, $event_id, $group_id = NULL, $repeat_instance = 1) {
+    function redcap_data_entry_form ($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance = 1) {
         $user = new User($this->fw, defined("USERID") ? USERID : null);
         // Only catering for super users
         if (!$user->isSuperUser()) return;
@@ -58,7 +58,7 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         $this->add_features($features, $context);
     }
 
-    function redcap_survey_page ($project_id, $record = NULL, $instrument, $event_id, $group_id = NULL, $survey_hash, $response_id = NULL, $repeat_instance = 1) {
+    function redcap_survey_page ($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance = 1) {
         // Only catering for super users
         if (!\Session::hasAdminSessionCookie()) return;
         
