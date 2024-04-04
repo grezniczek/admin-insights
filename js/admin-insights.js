@@ -296,23 +296,6 @@ function addDesignerEnhancements(config) {
     $('span[data-kind="variable-name"]').each(function() {
         const $field = $(this);
         const fieldName = $field.text();
-        const $variable = $field.prev('i');
-        const $wrapper = $('<span class="ai-copy-field-name"></span>');
-        $variable.before($wrapper);
-        $wrapper.append($variable);
-        $wrapper.append('&nbsp;');
-        $wrapper.append($field);
-        $wrapper.on('mousedown', function(e) {
-            e.stopImmediatePropagation();
-        })
-        $wrapper.on('click', function(e) {
-            copyTextToClipboard(e.ctrlKey ? '['+fieldName+']' : fieldName);
-            $wrapper.addClass('clicked');
-            setTimeout(() => {
-                $wrapper.removeClass('clicked');
-            }, 300);
-            return false;
-        })
         const text = '' + config.fields[fieldName] ?? '';
         const $badge = $('<span class="badge badge-info ai-badge" style="font-weight:normal;">AI</span>');
         const $code = $('<div><div class="ai-code-wrapper"><code class="ai-code"></code></div></div>');
