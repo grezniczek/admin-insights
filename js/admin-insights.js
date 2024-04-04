@@ -11,7 +11,8 @@ const moduleName = 'AdminInsights';
 // @ts-ignore
 const MODULE = window[moduleNamePrefix + moduleName] ?? {
     init: initialize,
-    toggle: toggleFeature
+    toggle: toggleFeature,
+    showDialog: showDialog
 };
 // @ts-ignore
 window[moduleNamePrefix + moduleName] = MODULE;
@@ -105,7 +106,40 @@ function toggleFeature(feature) {
 
 //#endregion
 
-//#region Features
+//#region Some feature with a dialog
+
+function showDialog() {
+    // Get rid of any old modals
+    $('#ai-sql-fields-dialog').remove();
+    // Get modal HTML from server
+    JSMO.ajax('get-feature-dialog')
+    .then((data) => {
+        $('body').append($(data));
+        const options = {
+            backdrop: 'static',
+            keyboard: true,
+            focus: true
+        };
+        const modalEl = document.getElementById('ai-feature-dialog');
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl, options);
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                modal.dispose();
+            });
+            modal.show();
+        } 
+    })
+    .catch((err) => {
+        error('Failed to get dialog from the server.', err);
+    });
+
+}
+
+
+//#endregion
+
+
+//#region Features (Enhancements)
 
 /**
  * Adds a button to reveal hidden fields (can hide them again, too)

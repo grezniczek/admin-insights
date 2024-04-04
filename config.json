@@ -36,6 +36,12 @@
                 "key": "toggle-designer-enhancements",
                 "icon": "fas fa-eye",
                 "url": "javascript:DE_RUB_AdminInsights.toggle('designer-enhancements'); //"
+            },
+            {
+                "name": "<SET VIA CODE>",
+                "key": "feature-dialog",
+                "icon": "fa-solid fa-arrow-right-arrow-left",
+                "url": "javascript:DE_RUB_AdminInsights.showDialog(); //"
             }
         ],
         "control-center": [
@@ -54,7 +60,8 @@
     "auth-ajax-actions": [
         "toggle-data-entry-annotations",
         "toggle-survey-annotations",
-        "toggle-designer-enhancements"
+        "toggle-designer-enhancements",
+        "get-feature-dialog"
     ],
     "compatibility": {
         "php-version-min": "7.4.0",

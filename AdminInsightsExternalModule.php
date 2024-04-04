@@ -14,31 +14,16 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #region Constructor & Variables
 
-    /**
-     * EM Framework (tooling support)
-     * @var \ExternalModules\Framework
-     */
-    private $fw;
-
-    /**
-     * @var InjectionHelper
-     */
-    public $ih = null;
-
     private $js_injected = false;
 
-    function __construct() {
-        parent::__construct();
-        $this->fw = $this->framework;
-        $this->ih = InjectionHelper::init($this);
-    }
+    private $ai_icon = "<span class=\"badge badge-info\" style=\"font-weight:normal;font-size:80%;\">AI</span> ";
 
     #endregion
 
     #region Hooks
 
     function redcap_data_entry_form ($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance = 1) {
-        $user = new User($this->fw, defined("USERID") ? USERID : null);
+        $user = new User($this->framework, defined("USERID") ? USERID : null);
         // Only catering for super users
         if (!$user->isSuperUser()) return;
 
@@ -79,7 +64,7 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
     }
 
     function redcap_every_page_top($project_id = null) {
-        $user = new User($this->fw, defined("USERID") ? USERID : null);
+        $user = new User($this->framework, defined("USERID") ? USERID : null);
 
         // Only catering for super users
         if (!$user->isSuperUser()) return;
@@ -117,30 +102,39 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
     }
 
     function redcap_module_link_check_display($project_id, $link) {
-        $user = new User($this->fw, defined("USERID") ? USERID : null);
+        $user = new User($this->framework, defined("USERID") ? USERID : null);
         // Only cater to super users
         if (!$user->isSuperUser()) return null;
 
+
+        $get_state_icon = function($id) {
+            $state = $this->getFeatureState($id);
+            return "<span id=\"ai-$id-state\">".$this->getFeatureStateIcon($state)."</span>";
+        };
+
         if ($project_id && $link["key"] == "toggle-designer-enhancements") {
-            $state = $this->getFeatureState("designer-enhancements");
-            $link["name"] = $this->tt("link_designer_enhancements") . "<span id=\"ai-designer-enhancements-state\">" . $this->tt("link_state_{$state}") . "</span>";
+            $link["name"] = $this->ai_icon . $this->tt("link_designer_enhancements") . $get_state_icon("designer-enhancements");
             return $link;
         }
         if ($project_id && $link["key"] == "toggle-data-entry-annotations") {
-            $state = $this->getFeatureState("data-entry-annotations");
-            $link["name"] = $this->tt("link_data_entry_annotations") . "<span id=\"ai-data-entry-annotations-state\">" . $this->tt("link_state_{$state}") . "</span>";
+            $link["name"] = $this->ai_icon . $this->tt("link_data_entry_annotations") . $get_state_icon("data-entry-annotations");
             return $link;
         }
         if ($project_id && $link["key"] == "toggle-survey-annotations") {
-            $state = $this->getFeatureState("survey-annotations");
-            $link["name"] = $this->tt("link_survey_annotations") . "<span id=\"ai-survey-annotations-state\">" . $this->tt("link_state_{$state}") . "</span>";
+            $link["name"] = $this->ai_icon . $this->tt("link_survey_annotations") . $get_state_icon("survey-annotations");
             return $link;
         }
+        // Opens a dialog (no function yet)
+        // if ($project_id && $link["key"] == "feature-dialog") {
+        //     $link["name"] = $this->ai_icon . $this->tt("link_feature_dialog");
+        //     return $link;
+        // }
+
         return null;
     }
 
     function redcap_module_ajax($action, $payload, $project_id, $record, $instrument, $event_id, $repeat_instance, $survey_hash, $response_id, $survey_queue_hash, $page, $page_full, $user_id, $group_id) {
-        $user = new User($this->fw, $user_id);
+        $user = new User($this->framework, $user_id);
         // Only cater to super users
         if (!$user->isSuperUser()) throw new Exception("Insufficient rights.");
 
@@ -153,6 +147,9 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
             }
             case 'toggle-designer-enhancements': {
                 return $this->toggleFeatureState("designer-enhancements");
+            }
+            case "get-feature-dialog": {
+                return $this->generateFeatureDialog();
             }
         }
         return null;
@@ -200,8 +197,9 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         // Only do this once
         if ($this->js_injected) return;
         // Inject JS and CSS
-        $this->ih->js("js/admin-insights.js", PageInfo::IsSurvey());
-        $this->ih->css("css/admin-insights.css", PageInfo::IsSurvey());
+        $ih = InjectionHelper::init($this);
+        $ih->js("js/admin-insights.js", PageInfo::IsSurvey());
+        $ih->css("css/admin-insights.css", PageInfo::IsSurvey());
         $this->initializeJavascriptModuleObject();
         $this->js_injected = true;
     }
@@ -306,6 +304,35 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #endregion
 
+
+    #region A feature dialog
+
+    function generateFeatureDialog() {
+        $title = $this->tt("feature_dialog_title");
+        return <<<END
+        <div id="ai-feature-dialog" class="modal modal-dialog-centered modal-dialog-scrollable modal-lg" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">{$this->ai_icon} $title</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Modal body text goes here.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary">Save changes</button>
+                </div>
+                </div>
+            </div>
+        </div>
+        END;
+    }
+
+    #endregion
+
+
     #region Helpers
 
     private function getFeatureState($feature) {
@@ -319,7 +346,13 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     private function toggleFeatureState($feature) {
         $state = $this->setFeatureState($feature, $this->getFeatureState($feature) === "on" ? "off" : "on");
-        return $this->tt("link_state_{$state}");
+        return $this->getFeatureStateIcon($state);
+    }
+
+    private function getFeatureStateIcon($state) {
+        return $state == "on" 
+            ? "<i class=\"fas fa-toggle-on text-success ms-2\"></i>"
+            : "<i class=\"fas fa-toggle-off ms-2\" style=\"opacity:.5;\"></i>";
     }
 
     #endregion
