@@ -22,6 +22,10 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
 
     #region Hooks
 
+    function redcap_data_entry_form_draft_preview($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance = 1) {
+        $this->redcap_data_entry_form($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance);
+    }
+
     function redcap_data_entry_form ($project_id, $record, $instrument, $event_id, $group_id, $repeat_instance = 1) {
         $user = new User($this->framework, defined("USERID") ? USERID : null);
         // Only catering for super users
@@ -228,9 +232,12 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         $config["fields"] = [];
         $config["codeTitle"] = $this->tt("designer_code_title");
         $Proj = new \Project($context["pid"]);
-        $fields = array_keys($Proj->forms[$context["form"]]["fields"]);
+        $draft_preview_enabled = ($GLOBALS["draft_preview_enabled"] ?? false);
+        $Proj_metadata = ($draft_preview_enabled) ? $Proj->metadata_temp : $Proj->metadata;
+        $Proj_forms = ($draft_preview_enabled) ? $Proj->forms_temp : $Proj->forms;
+        $fields = array_keys($Proj_forms[$context["form"]]["fields"]);
         foreach ($fields as $field) {
-            $misc = $Proj->metadata[$field]["misc"] ?? "";
+            $misc = $Proj_metadata[$field]["misc"] ?? "";
             $config["fields"][$field] = $misc;
         }
         return true;
@@ -247,17 +254,20 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
     private function form_annotations($context, &$config) {
         $config["fields"] = [];
         $Proj = new \Project($context["pid"]);
+        $draft_preview_enabled = ($GLOBALS["draft_preview_enabled"] ?? false);
+        $Proj_metadata = ($draft_preview_enabled) ? $Proj->metadata_temp : $Proj->metadata;
+        $Proj_forms = ($draft_preview_enabled) ? $Proj->forms_temp : $Proj->forms;
         if ($context["is_survey"]) {
             $page_num = isset($_GET["__page__"]) ? intval($_GET["__page__"]) : 1;
             $page_fields = \Survey::getPageFields($context["form"], true)[0][$page_num];
             $config["isSurvey"] = true;
         }
         else {
-            $page_fields = array_keys($Proj->forms[$context["form"]]["fields"]);
+            $page_fields = array_keys($Proj_forms[$context["form"]]["fields"]);
             $config["isSurvey"] = false;
         }
         foreach ($page_fields as $field) {
-            $misc = $Proj->metadata[$field]["misc"] ?? "";
+            $misc = $Proj_metadata[$field]["misc"] ?? "";
             $config["fields"][$field] = $misc;
         }
         return true;

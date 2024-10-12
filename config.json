@@ -10,12 +10,7 @@
             "institution": "Ruhr-Universität Bochum - Marien Hospital Herne"
         }
     ],
-    "framework-version": 11,
-    "permissions": [
-        "redcap_every_page_top",
-        "redcap_data_entry_form",
-        "redcap_survey_page"
-    ],
+    "framework-version": 14,
     "enable-every-page-hooks-on-system-pages": true,
     "links": {
         "project": [
@@ -62,11 +57,5 @@
         "toggle-survey-annotations",
         "toggle-designer-enhancements",
         "get-feature-dialog"
-    ],
-    "compatibility": {
-        "php-version-min": "7.4.0",
-        "php-version-max": "",
-        "redcap-version-min": "13.4.1",
-        "redcap-version-max": ""
-     }
+    ]
 }
