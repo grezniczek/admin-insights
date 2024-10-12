@@ -47,6 +47,10 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
         $this->add_features($features, $context);
     }
 
+    function redcap_survey_page_draft_preview ($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance = 1) {
+        $this->redcap_survey_page($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance);
+    }
+
     function redcap_survey_page ($project_id, $record, $instrument, $event_id, $group_id, $survey_hash, $response_id, $repeat_instance = 1) {
         // Only catering for super users
         if (!\Session::hasAdminSessionCookie()) return;
@@ -65,6 +69,10 @@ class AdminInsightsExternalModule extends AbstractExternalModule {
             "is_survey" => true
         ];
         $this->add_features($features, $context);
+    }
+
+    function redcap_every_page_top_draft_preview($project_id = null) {
+        $this->redcap_every_page_top($project_id);
     }
 
     function redcap_every_page_top($project_id = null) {
